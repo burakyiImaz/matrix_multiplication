@@ -29,6 +29,33 @@ void MatmulNaive_Order(const Matrix<double>& A, const Matrix<double>& B, const M
     // Not: Bu sıralama özellikle row-major düzeni olan matrislerde  memory access açısından daha cache-friendly olabilir
 }
 
+void MatmulNaive_Tile(const Matrix<double>& A, const Matrix<double>& B, const Matrix<double>& C, int tile_size){
+    auto M = A.row();
+    auto N = B.col();
+    auto K = A.col();
+
+
+    constexpr auto BLOCK = 64; // Cache line boyutuna uygun bir tile size seçilebilir
+    for(int ib=0; ib<M; ib+=BLOCK){
+        for(int kb=0; kb<K; kb+=BLOCK){
+            for(int jb=0; jb<N; jb+=BLOCK){
+                // Tile boyutlarına göre alt matrislerin sınırlarını belirledim
+                int i_max = std::min(ib + BLOCK, M);
+                int k_max = std::min(kb + BLOCK, K);
+                int j_max = std::min(jb + BLOCK, N);
+
+                // Alt matrisler üzerinde çarpma işlemi
+                for (int i=ib; i<i_max; i++){        
+                    for (int k=kb; k<k_max; k++){   
+                        for(int j=jb; j<j_max; j++){ 
+                            C(i,j) += A(i,k) * B(k,j);
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
 
 
 
