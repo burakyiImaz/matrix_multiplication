@@ -1,17 +1,17 @@
 
-void MatmulNaive(const Matrix<double>& A, const Matrix<double>& B, const Matrix<double>& C){
-    auto M = A.row();
-    auto N = B.col(); 
-    auto K = A.col(); 
+void MatmulNaive(const Matrix<double>&A, const Matrix<double>& B, const Matrix<double>&C){
+    auto M= A.col();
+    auto N = B.col();
+    auto K = A.row();
 
-    for (int i=0; i<M; i++){        
-        for (int j=0; j<N; j++){   
-            for(int k=0; k<K; k++){ 
-                C(i,j) += A(i,k) * B(k,j);
+    for(int i=0;i<M;i++){
+        for(int j=0;j<N;j++){
+            for(int k=0;k<K;k++){
+                C(i,j)+= A(i,k)*B(k,j);
             }
         }
     }
-    // Not: Bu sırayla döngü cache hit’i sütun bazlı olduğundan CPU cache açısından daha az verimli olabilir
+    // Not: Bu sıralama özellikle column-major düzeni olan matrislerde memory access açısından daha cache-friendly olabilir
 }
 
 void MatmulNaive_Order(const Matrix<double>& A, const Matrix<double>& B, const Matrix<double>& C){
@@ -29,33 +29,61 @@ void MatmulNaive_Order(const Matrix<double>& A, const Matrix<double>& B, const M
     // Not: Bu sıralama özellikle row-major düzeni olan matrislerde  memory access açısından daha cache-friendly olabilir
 }
 
+
+template<int BLOCK>
+void naive_block(const double *a, const double *mb, double *c, int N, int K){
+    for(int i=0;i<BLOCK;i++, c+=N, a+=K){
+        const double* b=mb;
+        for(int k=0;k<BLOCK;k++, b+=N){
+            for(int j=0;j<BLOCK;j++){
+                c[j] += a[k] * b[j];
+            }
+        }
+    }
+}
+
+
+template<int BLOCK>
+void simd_block(const double *a, const double *mb, double *c, int N, int K){
+    constexpr int simd_doubles= 128/(sizeof(double)*8); // 128-bit genişliğinde, kaç double sığar
+    for(int i=0;i<BLOCK;i++, c+=N, a+=K){
+        const double* b=mb;
+        for(int k=0;k<BLOCK;k++, b+=N){
+            __m128d a_reg = _mm_load_sd(&a[k]);
+            a_reg         = _mm_unpacklo_pd(a_reg, a_reg); // a[k] değerini iki kere kopyalayarak 128-bit register'a yükle
+            for(int j=0;j<BLOCK;j+=simd_doubles){ // SIMD genişliğine göre j'yi artır
+                __m128d b_reg = _mm_load_pd(&b[j]);
+                __m128d c_reg = _mm_load_pd(&c[j]);
+                c_reg = _mm_add_pd(_mm_mul_pd(b_reg, a_reg), c_reg);
+                _mm_store_pd(&c[j], c_reg);
+            }
+        }
+    }
+}
+
+
+
 void MatmulNaive_Tile(const Matrix<double>& A, const Matrix<double>& B, const Matrix<double>& C, int tile_size){
     auto M = A.row();
     auto N = B.col();
     auto K = A.col();
 
 
-    constexpr auto BLOCK = 64; // Cache line boyutuna uygun bir tile size seçilebilir
-    for(int ib=0; ib<M; ib+=BLOCK){
-        for(int kb=0; kb<K; kb+=BLOCK){
-            for(int jb=0; jb<N; jb+=BLOCK){
-                // Tile boyutlarına göre alt matrislerin sınırlarını belirledim
-                int i_max = std::min(ib + BLOCK, M);
-                int k_max = std::min(kb + BLOCK, K);
-                int j_max = std::min(jb + BLOCK, N);
+    constexpr auto BLOCK=64; // Cache bloğu boyutu (örneğin 64KB)
 
-                // Alt matrisler üzerinde çarpma işlemi
-                for (int i=ib; i<i_max; i++){        
-                    for (int k=kb; k<k_max; k++){   
-                        for(int j=jb; j<j_max; j++){ 
-                            C(i,j) += A(i,k) * B(k,j);
-                        }
-                    }
-                }
-            }
+    for(int ib=0;ib<M;ib+=BLOCK){
+        for(int kb=0;kb<K;kb+=BLOCK){
+            for(int jb=0;jb<N;jb+=BLOCK){
+                const double* a= A(ib, kb);
+                const double* mb= B(kb, jb);
+                double* c= C(ib, jb);
+
+                ikernel::naive_block<BLOCK>(a, mb, c, N, K);
+
         }
     }
 }
+
 
 
 
