@@ -42,6 +42,33 @@ void naive_block(const double *a, const double *mb, double *c, int N, int K){
     }
 }
 
+oid MatmulNaive_Tile(const Matrix<double>& A, const Matrix<double>& B, const Matrix<double>& C, int tile_size){
+    auto M = A.row();
+    auto N = B.col();
+    auto K = A.col();
+
+
+    constexpr auto BLOCK=64; // Cache bloğu boyutu (örneğin 64KB)
+
+    for(int ib=0;ib<M;ib+=BLOCK){
+        for(int kb=0;kb<K;kb+=BLOCK){
+            for(int jb=0;jb<N;jb+=BLOCK){
+                const double* a= A(ib, kb);
+                const double* mb= B(kb, jb);
+                double* c= C(ib, jb);
+
+                ikernel::naive_block<BLOCK>(a, mb, c, N, K);
+
+        }
+    }
+}
+
+
+
+
+
+
+
 
 template<int BLOCK>
 void simd_block(const double *a, const double *mb, double *c, int N, int K){
@@ -62,27 +89,6 @@ void simd_block(const double *a, const double *mb, double *c, int N, int K){
 }
 
 
-
-void MatmulNaive_Tile(const Matrix<double>& A, const Matrix<double>& B, const Matrix<double>& C, int tile_size){
-    auto M = A.row();
-    auto N = B.col();
-    auto K = A.col();
-
-
-    constexpr auto BLOCK=64; // Cache bloğu boyutu (örneğin 64KB)
-
-    for(int ib=0;ib<M;ib+=BLOCK){
-        for(int kb=0;kb<K;kb+=BLOCK){
-            for(int jb=0;jb<N;jb+=BLOCK){
-                const double* a= A(ib, kb);
-                const double* mb= B(kb, jb);
-                double* c= C(ib, jb);
-
-                ikernel::naive_block<BLOCK>(a, mb, c, N, K);
-
-        }
-    }
-}
 
 
 
