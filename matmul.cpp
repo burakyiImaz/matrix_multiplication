@@ -67,9 +67,6 @@ oid MatmulNaive_Tile(const Matrix<double>& A, const Matrix<double>& B, const Mat
 
 
 
-
-
-
 template<int BLOCK>
 void simd_block(const double *a, const double *mb, double *c, int N, int K){
     constexpr int simd_doubles= 128/(sizeof(double)*8); // 128-bit genişliğinde, kaç double sığar
@@ -88,6 +85,24 @@ void simd_block(const double *a, const double *mb, double *c, int N, int K){
     }
 }
 
+
+
+template<int BLOCK>
+void avx_block(const double *a, const double *mb, double *c, int N, int K){
+    constexpr int avx_doubles= 256/(sizeof(double)*8); // 256-bit genişliğinde, kaç double sığar
+    for(int i=0;i<BLOCK;i++, c+=N, a+=K){
+        const double* b=mb;
+        for(int k=0;k<BLOCK;k++, b+=N){
+            __m256d a_reg = _mm256_broadcast_sd(&a[k]); // a[k] değerini 256-bit register'a yükle ve tüm elemanlara kopyala
+            for(int j=0;j<BLOCK;j+=avx_doubles){ // AVX genişliğine göre j'yi artır
+                __m256d b_reg = _mm256_load_pd(&b[j]);
+                __m256d c_reg = _mm256_load_pd(&c[j]);
+                c_reg = _mm256_add_pd(_mm256_mul_pd(b_reg, a_reg), c_reg);
+                _mm256_store_pd(&c[j], c_reg);
+            }
+        }
+    }
+}
 
 
 
