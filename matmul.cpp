@@ -151,6 +151,76 @@ void avx_cache(const double* a,
 } }
 
 
+template<int Nr, int Mr, int Kc, int Nc>
+void avx_regs(const double* ma, const double* b, double* c, int N, int K) //CPU register aware implementation
+{
+    constexpr int CREG_CNT{Mr * Nr / 4};
+    std::array<__m256d, CREG_CNT> res;
+    for(int idx = 0; idx < CREG_CNT; ++idx)
+        res[idx] = _mm256_setzero_pd();
+    for(int k = 0; k < Kc; ++k, b += N){
+        const double* a = ma;
+        int idx = 0;
+        for(int i = 0; i < Mr; ++i, a += K){
+            __m256d areg = _mm256_broadcast_sd(&a[k]);
+            for(int j = 0; j < Nr; j += 4, ++idx){
+                res[idx] = _mm256_fmadd_pd(areg, _mm256_loadu_pd(&b[j]), res[idx]);
+            }
+} }
+    int idx = 0;
+    for(int i = 0; i < Mr; ++i, c += N){
+        for(int j = 0; j < Nr; j += 4, ++idx){
+            load_inc_store_double(&c[j], res[idx]);
+        }
+} }
+
+
+template<int Nr, int Mr, int Kc, int Nc>
+void avx_regs_bpack(const double* ma, const double* b, double* c, int N, int K)
+{
+    constexpr int CREG_CNT{Mr * Nr / 4};
+    std::array<__m256d, CREG_CNT> res;
+    for(int idx = 0; idx < CREG_CNT; ++idx)
+        res[idx] = _mm256_setzero_pd();
+    for(int k = 0; k < Kc; ++k, b += Nc){
+        const double* a = ma;
+        int idx = 0;
+        for(int i = 0; i < Mr; ++i, a += K){
+            __m256d areg = _mm256_broadcast_sd(&a[k]);
+            for(int j = 0; j < Nr; j += 4, ++idx){
+                res[idx] = _mm256_fmadd_pd(areg, _mm256_loadu_pd(&b[j]), res[idx]);
+            }
+} }
+    int idx = 0;
+    for(int i = 0; i < Mr; ++i, c += N){
+        for(int j = 0; j < Nr; j += 4, ++idx){
+            load_inc_store_double(&c[j], res[idx]);
+        }
+} }
+
+
+template<int Nr, int Mr, int Kc>
+void avx_regs_reordered(const double* a, const double* b, double* c, int N)// Assuming b is already packed in column-major order
+{
+    constexpr int CREG_CNT{Mr * Nr / 4};
+    std::array<__m256d, CREG_CNT> res;
+    for(int idx = 0; idx < CREG_CNT; ++idx)
+        res[idx] = _mm256_setzero_pd();
+    for(int k = 0; k < Kc; ++k, b += Nr, a += Mr){
+        int idx = 0;
+        for(int i = 0; i < Mr; ++i){
+            __m256d areg = _mm256_broadcast_sd(&a[i]);
+            for(int j = 0; j < Nr; j += 4, ++idx){
+                res[idx] = _mm256_fmadd_pd(areg, _mm256_loadu_pd(&b[j]), res[idx]);
+            }
+} }
+    int idx = 0;
+    for(int i = 0; i < Mr; ++i, c += N){
+        for(int j = 0; j < Nr; j += 4, ++idx){
+            load_inc_store_double(&c[j], res[idx]);
+        }
+} }
+
 
 int main(){
     int M =2, N=4, K=2;
