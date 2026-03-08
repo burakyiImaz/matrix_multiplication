@@ -130,6 +130,28 @@ void matMul_Avx_Cache(const Matrix<double>& A, const Matrix<double>& B, Matrix<d
 
 
 
+template<int Nr, int Mr, int Kc, int Nc>
+void avx_cache(const double* a,
+                const double* mb,
+                double* c,
+                int N,
+                int K)
+{
+    constexpr int avx_doubles = 256 / (sizeof(double) * 8); // Equals 4
+    for(int i = 0; i < Mr; ++i, c += N, a += K){
+        const double* b = mb;
+        for(int k = 0; k < Kc; ++k, b += N){
+            __m256d a_reg = _mm256_broadcast_sd(&a[k]);
+            for(int j = 0; j < Nr; j += avx_doubles){
+                __m256d b_reg = _mm256_loadu_pd(&b[j]);
+                __m256d c_reg = _mm256_loadu_pd(&c[j]);
+                c_reg = _mm256_fmadd_pd(a_reg, b_reg, c_reg);
+                _mm256_storeu_pd(&c[j], c_reg);
+} }
+} }
+
+
+
 int main(){
     int M =2, N=4, K=2;
     Matrix<double> A(M, K);
