@@ -107,6 +107,28 @@ void avx_block(const double *a, const double *mb, double *c, int N, int K){
 
 
 
+void matMul_Avx_Cache(const Matrix<double>& A, const Matrix<double>& B, Matrix<double>& C)
+{
+    auto M = A.row();
+    auto K = A.col();
+    auto N = B.col();
+    constexpr auto Mc = 180, Nc = 96, Kc = 240, Nr = 12, Mr = 4;
+    for(int ib = 0; ib < M; ib += Mc){
+        for(int kb = 0; kb < K; kb += Kc){
+            for(int jb = 0; jb < N; jb += Nc){
+                const double* ma = &A(ib, kb);
+                const double* mb = &B(kb, jb);
+                double*       mc = &C(ib, jb);
+                for(int i2 = 0; i2 < Mc; i2 += Mr){
+                    for(int j2 = 0; j2 < Nc; j2 += Nr){
+                        const double* a = &ma[i2 * K];
+                        const double* b = &mb[j2];
+                        double*       c = &mc[i2 * N + j2];
+                        ikernels::avx_block<Nr, Mr, Kc, Nc>(c, a, b, N, K);
+} } } }
+
+
+
 
 int main(){
     int M =2, N=4, K=2;
